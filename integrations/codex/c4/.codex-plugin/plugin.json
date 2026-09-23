@@ -1,0 +1,17 @@
+{
+  "name": "c4",
+  "version": "0.2.0",
+  "description": "Auditable tool-call and prompt-injection guard for coding agents",
+  "author": {
+    "name": "C4 contributors"
+  },
+  "interface": {
+    "displayName": "C4",
+    "shortDescription": "Audit and guard coding-agent tool transitions.",
+    "longDescription": "C4 reviews tool calls and tool results with Jev, a versioned policy, and hash-linked local audit records.",
+    "developerName": "C4 contributors",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "defaultPrompt": "Review the current agent safety boundary with C4."
+  }
+}

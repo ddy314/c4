@@ -1,7 +1,8 @@
 import { JevClient } from '../src/jev.mjs';
 import { record } from '../src/audit.mjs';
 import { selectMemory, textOf } from '../src/memory.mjs';
-import { inspectInput, inspectToolCall, inspectToolResult } from '../src/safety.mjs';
+import { inspectInput } from '../src/safety.mjs';
+import { createGuard, QUARANTINE } from '../src/guard.mjs';
 
 const mode = process.env.C4_MODE ?? 'all';
 const memoryEnabled = mode === 'all' || mode === 'compaction';
@@ -10,6 +11,7 @@ const safetyEnabled = mode === 'all' || mode === 'safety';
 export default function c4(pi: any) {
   if (!memoryEnabled && !safetyEnabled) return;
   const client = new JevClient();
+  const guard = safetyEnabled ? createGuard({ host: 'pi', client }) : null;
   let latestGoal = '';
 
   if (memoryEnabled) {
@@ -87,37 +89,22 @@ export default function c4(pi: any) {
     });
 
     pi.on('tool_call', async (event: any, ctx: any) => {
-      let decision;
-      try {
-        decision = await inspectToolCall(event.toolName, event.input, client, { goal: latestGoal, signal: ctx.signal });
-      } catch (error) {
-        await record({ boundary: 'tool_call', mode, outcome: 'block_on_error', tool: event.toolName, error: String(error).slice(0, 200) });
-        return { block: true, reason: 'C4 risk check unavailable' };
-      }
-      const decisionRef = await record({ boundary: 'tool_call', mode, outcome: decision.action, observation: decision.observation, policyId: decision.policyId, policyHash: decision.policyHash, tool: event.toolName, inputHash: decision.inputHash, probabilities: decision.probabilities, jev: decision.usage, latencyMs: decision.latencyMs });
+      const decision = await guard!.toolCall(event.toolName, event.input, { goal: latestGoal, signal: ctx.signal });
       if (decision.action === 'allow') return;
       if (decision.action === 'ask' && ctx.hasUI) {
         const allowed = await ctx.ui.confirm('C4 action review', `${event.toolName}: ${decision.reason}. Execute?`);
-        await record({ boundary: 'human_review', decisionRef, subject: 'tool_call', tool: event.toolName, outcome: allowed ? 'approved' : 'denied', reviewer: 'interactive_user' });
-        if (allowed) return;
+        if (await guard!.review(decision.decisionRef, event.toolName, allowed)) return;
       } else if (decision.action === 'ask') {
-        await record({ boundary: 'human_review', decisionRef, subject: 'tool_call', tool: event.toolName, outcome: 'denied', reviewer: 'non_interactive_policy' });
+        await guard!.review(decision.decisionRef, event.toolName, false, 'non_interactive_policy');
       }
       return { block: true, reason: decision.reason };
     });
 
     pi.on('tool_result', async (event: any, ctx: any) => {
       if (!['read', 'bash', 'grep', 'find', 'ls'].includes(event.toolName)) return;
-      let decision;
-      try {
-        decision = await inspectToolResult(event.toolName, event.content, client, { signal: ctx.signal });
-      } catch (error) {
-        await record({ boundary: 'tool_result', mode, outcome: 'quarantine_on_error', tool: event.toolName, error: String(error).slice(0, 200) });
-        return { content: [{ type: 'text', text: '[C4 quarantined a tool result because screening failed. Re-run after review.]' }] };
-      }
-      await record({ boundary: 'tool_result', mode, outcome: decision.action, observation: decision.observation, policyId: decision.policyId, policyHash: decision.policyHash, tool: event.toolName, inputHash: decision.inputHash, probabilities: decision.probabilities, jev: decision.usage, latencyMs: decision.latencyMs });
-      if (decision.action === 'block' || decision.probabilities.injection >= 0.92) {
-        return { content: [{ type: 'text', text: '[C4 quarantined a tool result containing instructions addressed to the agent. Source text is excluded from model context.]' }] };
+      const decision = await guard!.toolResult(event.toolName, event.content, { signal: ctx.signal });
+      if (decision.action === 'block') {
+        return { content: [{ type: 'text', text: QUARANTINE }] };
       }
       if (decision.action === 'ask') {
         return { content: [

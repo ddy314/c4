@@ -1,0 +1,7 @@
+{
+  "name": "c4",
+  "version": "0.2.0",
+  "description": "Auditable safety guard for Claude Code tool calls and untrusted results",
+  "author": { "name": "C4 contributors" },
+  "repository": "https://github.com/ddy314/c4"
+}

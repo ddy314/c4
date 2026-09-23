@@ -1,9 +1,11 @@
 {
   "name": "c4",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "integrations:build": "node scripts/build-integrations.mjs",
+    "smoke:live": "node scripts/smoke-live.mjs",
     "test": "node test/core.test.mjs",
     "bench:safety": "node scripts/bench-safety.mjs",
     "bench:memory": "node scripts/bench-memory.mjs",
@@ -28,5 +30,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
