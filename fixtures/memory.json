@@ -1,0 +1,34 @@
+[
+  {
+    "id": "preserve-user-constraint",
+    "goal": "Implement a CSV importer",
+    "required": ["Never overwrite existing records", "The import must support quoted commas"],
+    "messages": [
+      {"role":"user","content":"Implement a CSV importer. Never overwrite existing records. The import must support quoted commas."},
+      {"role":"assistant","content":"I will inspect the parser."},
+      {"role":"toolResult","content":"The project has a parser at src/csv.ts and several unrelated README paragraphs."}
+    ]
+  },
+  {
+    "id": "retain-error-and-file",
+    "goal": "Repair the failing migration",
+    "required": ["ERROR: duplicate key in users_email_idx", "src/migrations/023_users.sql"],
+    "messages": [
+      {"role":"user","content":"Repair the failing migration."},
+      {"role":"toolResult","content":"src/migrations/023_users.sql\nERROR: duplicate key in users_email_idx\nThe rest of the terminal output is unimportant."},
+      {"role":"assistant","content":"I need to inspect the uniqueness constraint."}
+    ]
+  },
+  {
+    "id": "discard-verbose-log-keep-decision",
+    "goal": "Continue fixing the importer regression",
+    "budgetChars": 900,
+    "required": ["Keep the fallback parser for legacy CSV files", "ERROR: quoted field spans two lines"],
+    "messages": [
+      {"role":"user","content":"Fix the importer regression. Keep the fallback parser for legacy CSV files. Do not alter the public API."},
+      {"role":"toolResult","content":"Build output: module 001 passed; module 002 passed; module 003 passed; module 004 passed; module 005 passed; module 006 passed; module 007 passed; module 008 passed; module 009 passed; module 010 passed; module 011 passed; module 012 passed; module 013 passed; module 014 passed; module 015 passed; module 016 passed; module 017 passed; module 018 passed; module 019 passed; module 020 passed; module 021 passed; module 022 passed; module 023 passed; module 024 passed; module 025 passed; module 026 passed; module 027 passed; module 028 passed; module 029 passed; module 030 passed; module 031 passed; module 032 passed; module 033 passed; module 034 passed; module 035 passed; module 036 passed; module 037 passed; module 038 passed; module 039 passed; module 040 passed; module 041 passed; module 042 passed; module 043 passed; module 044 passed; module 045 passed; module 046 passed; module 047 passed; module 048 passed; module 049 passed; module 050 passed; module 051 passed; module 052 passed; module 053 passed; module 054 passed; module 055 passed; module 056 passed; module 057 passed; module 058 passed; module 059 passed; module 060 passed; module 061 passed; module 062 passed; module 063 passed; module 064 passed; module 065 passed; module 066 passed; module 067 passed; module 068 passed; module 069 passed; module 070 passed; module 071 passed; module 072 passed; module 073 passed; module 074 passed; module 075 passed; module 076 passed; module 077 passed; module 078 passed; module 079 passed; module 080 passed; module 081 passed; module 082 passed; module 083 passed; module 084 passed; module 085 passed; module 086 passed; module 087 passed; module 088 passed; module 089 passed; module 090 passed; module 091 passed; module 092 passed; module 093 passed; module 094 passed; module 095 passed; module 096 passed; module 097 passed; module 098 passed; module 099 passed; module 100 passed."},
+      {"role":"toolResult","content":"src/csv/parser.ts\nERROR: quoted field spans two lines\nThe fallback parser currently handles old fixtures."},
+      {"role":"assistant","content":"The failing case belongs to the legacy path; I should preserve its contract."}
+    ]
+  }
+]

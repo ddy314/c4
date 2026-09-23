@@ -1,0 +1,32 @@
+{
+  "name": "c4",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/core.test.mjs",
+    "bench:safety": "node scripts/bench-safety.mjs",
+    "bench:memory": "node scripts/bench-memory.mjs",
+    "bench:pi": "node scripts/bench-pi.mjs",
+    "bench:injection": "node scripts/bench-injection.mjs",
+    "bench:comparison": "node scripts/bench-comparison.mjs",
+    "bench:matrix": "node scripts/bench-openrouter-matrix.mjs",
+    "bench:matrix:verify": "node scripts/verify-openrouter-matrix.mjs",
+    "bench:export": "node scripts/export-benchmark.mjs",
+    "bench:published:verify": "node scripts/verify-published-benchmark.mjs",
+    "charts": "python scripts/render-benchmark-charts.py",
+    "bench:hard-negatives": "node scripts/bench-hard-negatives.mjs",
+    "bench:verify": "node scripts/verify-benchmark.mjs",
+    "policy:replay": "node scripts/replay-policy.mjs",
+    "policy:replay-trace": "node scripts/replay-trace.mjs",
+    "policy:calibrate": "node scripts/calibrate-policy.mjs",
+    "report": "node scripts/report.mjs",
+    "dashboard": "node scripts/dashboard.mjs",
+    "dashboard:comparison": "node scripts/comparison-dashboard.mjs",
+    "dashboard:matrix": "node scripts/report-openrouter-matrix.mjs",
+    "audit:verify": "node scripts/verify-audit.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

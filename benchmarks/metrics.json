@@ -1,0 +1,629 @@
+{
+  "source": {
+    "name": "InjecAgent",
+    "url": "https://github.com/uiuc-kang-lab/InjecAgent",
+    "commit": "f19c9f2c79a41046eb13c03c51a24c567a8ffa07",
+    "license": "MIT",
+    "sampleOffset": 22,
+    "perCategory": 10,
+    "sampleHash": "fb20f68e4315bec2b0928d7e996db370fc9fffd5edd6db09a183c1501f18997b",
+    "promptHash": "a06d80e040d4b3540835c5aa4495fd9c610e5998c36137d1572e1d426a0779a3"
+  },
+  "methods": [
+    {
+      "id": "c4",
+      "name": "C4 \u00b7 Jev + policy",
+      "family": "C4",
+      "valid": 120,
+      "caught": 58,
+      "allowed": 60,
+      "attack_recall": 0.9666666666666667,
+      "balanced_accuracy": 0.9833333333333334,
+      "hard_valid": 11,
+      "hard_false_alarms": 6,
+      "hard_false_alarm_rate": 0.5454545454545454,
+      "cost_per_1000_valid": 0.01743805,
+      "median_latency_ms": 404.0,
+      "category": {
+        "Physical Harm": [
+          10,
+          10
+        ],
+        "Financial Harm": [
+          8,
+          10
+        ],
+        "Data Security Harm": [
+          10,
+          10
+        ],
+        "Physical Data": [
+          10,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "action-rule",
+      "name": "Action-keyword rules",
+      "family": "Rules",
+      "valid": 120,
+      "caught": 41,
+      "allowed": 60,
+      "attack_recall": 0.6833333333333333,
+      "balanced_accuracy": 0.8416666666666667,
+      "hard_valid": 11,
+      "hard_false_alarms": 7,
+      "hard_false_alarm_rate": 0.6363636363636364,
+      "cost_per_1000_valid": 0.0,
+      "median_latency_ms": null,
+      "category": {
+        "Physical Harm": [
+          5,
+          10
+        ],
+        "Financial Harm": [
+          4,
+          10
+        ],
+        "Data Security Harm": [
+          8,
+          10
+        ],
+        "Physical Data": [
+          7,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          7,
+          10
+        ]
+      }
+    },
+    {
+      "id": "google/gemma-3-4b-it",
+      "name": "Google: Gemma 3 4B",
+      "family": "Earlier baseline",
+      "valid": 120,
+      "caught": 52,
+      "allowed": 60,
+      "attack_recall": 0.8666666666666667,
+      "balanced_accuracy": 0.9333333333333333,
+      "hard_valid": 12,
+      "hard_false_alarms": 6,
+      "hard_false_alarm_rate": 0.5,
+      "cost_per_1000_valid": 0.01024125,
+      "median_latency_ms": 736.0,
+      "category": {
+        "Physical Harm": [
+          6,
+          10
+        ],
+        "Financial Harm": [
+          10,
+          10
+        ],
+        "Data Security Harm": [
+          9,
+          10
+        ],
+        "Physical Data": [
+          8,
+          10
+        ],
+        "Financial Data": [
+          9,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "meta-llama/llama-3.2-3b-instruct",
+      "name": "Meta: Llama 3.2 3B Instruct",
+      "family": "Earlier baseline",
+      "valid": 120,
+      "caught": 2,
+      "allowed": 60,
+      "attack_recall": 0.03333333333333333,
+      "balanced_accuracy": 0.5166666666666667,
+      "hard_valid": 12,
+      "hard_false_alarms": 2,
+      "hard_false_alarm_rate": 0.16666666666666666,
+      "cost_per_1000_valid": 0.012385320833333333,
+      "median_latency_ms": 425.0,
+      "category": {
+        "Physical Harm": [
+          0,
+          10
+        ],
+        "Financial Harm": [
+          1,
+          10
+        ],
+        "Data Security Harm": [
+          0,
+          10
+        ],
+        "Physical Data": [
+          0,
+          10
+        ],
+        "Financial Data": [
+          1,
+          10
+        ],
+        "Others": [
+          0,
+          10
+        ]
+      }
+    },
+    {
+      "id": "mistralai/ministral-3b-2512",
+      "name": "Mistral: Ministral 3 3B 2512",
+      "family": "Earlier baseline",
+      "valid": 120,
+      "caught": 25,
+      "allowed": 60,
+      "attack_recall": 0.4166666666666667,
+      "balanced_accuracy": 0.7083333333333334,
+      "hard_valid": 12,
+      "hard_false_alarms": 1,
+      "hard_false_alarm_rate": 0.08333333333333333,
+      "cost_per_1000_valid": 0.013185999999999998,
+      "median_latency_ms": 627.0,
+      "category": {
+        "Physical Harm": [
+          3,
+          10
+        ],
+        "Financial Harm": [
+          1,
+          10
+        ],
+        "Data Security Harm": [
+          7,
+          10
+        ],
+        "Physical Data": [
+          4,
+          10
+        ],
+        "Financial Data": [
+          7,
+          10
+        ],
+        "Others": [
+          3,
+          10
+        ]
+      }
+    },
+    {
+      "id": "qwen/qwen3-30b-a3b-instruct-2507",
+      "name": "Qwen: Qwen3 30B A3B Instruct 2507",
+      "family": "Earlier baseline",
+      "valid": 120,
+      "caught": 43,
+      "allowed": 60,
+      "attack_recall": 0.7166666666666667,
+      "balanced_accuracy": 0.8583333333333334,
+      "hard_valid": 12,
+      "hard_false_alarms": 1,
+      "hard_false_alarm_rate": 0.08333333333333333,
+      "cost_per_1000_valid": 0.015593062916666666,
+      "median_latency_ms": 819.0,
+      "category": {
+        "Physical Harm": [
+          3,
+          10
+        ],
+        "Financial Harm": [
+          3,
+          10
+        ],
+        "Data Security Harm": [
+          9,
+          10
+        ],
+        "Physical Data": [
+          8,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-4o-mini",
+      "name": "OpenAI: GPT-4o-mini",
+      "family": "Earlier baseline",
+      "valid": 120,
+      "caught": 54,
+      "allowed": 60,
+      "attack_recall": 0.9,
+      "balanced_accuracy": 0.95,
+      "hard_valid": 12,
+      "hard_false_alarms": 1,
+      "hard_false_alarm_rate": 0.08333333333333333,
+      "cost_per_1000_valid": 0.0310575,
+      "median_latency_ms": 1454.5,
+      "category": {
+        "Physical Harm": [
+          6,
+          10
+        ],
+        "Financial Harm": [
+          10,
+          10
+        ],
+        "Data Security Harm": [
+          10,
+          10
+        ],
+        "Physical Data": [
+          8,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash-lite",
+      "name": "Google: Gemini 2.5 Flash Lite",
+      "family": "Earlier baseline",
+      "valid": 120,
+      "caught": 2,
+      "allowed": 60,
+      "attack_recall": 0.03333333333333333,
+      "balanced_accuracy": 0.5166666666666667,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.020202499999999998,
+      "median_latency_ms": 706.5,
+      "category": {
+        "Physical Harm": [
+          0,
+          10
+        ],
+        "Financial Harm": [
+          0,
+          10
+        ],
+        "Data Security Harm": [
+          0,
+          10
+        ],
+        "Physical Data": [
+          0,
+          10
+        ],
+        "Financial Data": [
+          2,
+          10
+        ],
+        "Others": [
+          0,
+          10
+        ]
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v3.2",
+      "name": "DeepSeek: DeepSeek V3.2",
+      "family": "Earlier baseline",
+      "valid": 120,
+      "caught": 21,
+      "allowed": 60,
+      "attack_recall": 0.35,
+      "balanced_accuracy": 0.675,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.04889534625,
+      "median_latency_ms": 1465.0,
+      "category": {
+        "Physical Harm": [
+          1,
+          10
+        ],
+        "Financial Harm": [
+          0,
+          10
+        ],
+        "Data Security Harm": [
+          5,
+          10
+        ],
+        "Physical Data": [
+          4,
+          10
+        ],
+        "Financial Data": [
+          5,
+          10
+        ],
+        "Others": [
+          6,
+          10
+        ]
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash",
+      "name": "DeepSeek: DeepSeek V4.1 Flash",
+      "family": "2026 model",
+      "valid": 120,
+      "caught": 56,
+      "allowed": 60,
+      "attack_recall": 0.9333333333333333,
+      "balanced_accuracy": 0.9666666666666667,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.10986704166666666,
+      "median_latency_ms": 1799.5,
+      "category": {
+        "Physical Harm": [
+          8,
+          10
+        ],
+        "Financial Harm": [
+          9,
+          10
+        ],
+        "Data Security Harm": [
+          10,
+          10
+        ],
+        "Physical Data": [
+          9,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "z-ai/glm-5.3-flash",
+      "name": "Z.ai: GLM 5.3 Flash",
+      "family": "2026 model",
+      "valid": 120,
+      "caught": 56,
+      "allowed": 60,
+      "attack_recall": 0.9333333333333333,
+      "balanced_accuracy": 0.9666666666666667,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.03052005416666666,
+      "median_latency_ms": 786.0,
+      "category": {
+        "Physical Harm": [
+          8,
+          10
+        ],
+        "Financial Harm": [
+          8,
+          10
+        ],
+        "Data Security Harm": [
+          10,
+          10
+        ],
+        "Physical Data": [
+          10,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "google/gemini-3.5-flash-lite",
+      "name": "Google: Gemini 3.5 Flash Lite",
+      "family": "2026 model",
+      "valid": 120,
+      "caught": 52,
+      "allowed": 60,
+      "attack_recall": 0.8666666666666667,
+      "balanced_accuracy": 0.9333333333333333,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.18188916666666669,
+      "median_latency_ms": 1128.5,
+      "category": {
+        "Physical Harm": [
+          8,
+          10
+        ],
+        "Financial Harm": [
+          5,
+          10
+        ],
+        "Data Security Harm": [
+          9,
+          10
+        ],
+        "Physical Data": [
+          10,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-6-luna",
+      "name": "OpenAI: GPT-6 Luna",
+      "family": "2026 model",
+      "valid": 120,
+      "caught": 55,
+      "allowed": 60,
+      "attack_recall": 0.9166666666666666,
+      "balanced_accuracy": 0.9583333333333333,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.04361333333333333,
+      "median_latency_ms": 2569.5,
+      "category": {
+        "Physical Harm": [
+          8,
+          10
+        ],
+        "Financial Harm": [
+          7,
+          10
+        ],
+        "Data Security Harm": [
+          10,
+          10
+        ],
+        "Physical Data": [
+          10,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "qwen/qwen3.8-flash",
+      "name": "Qwen: Qwen3.8 Flash",
+      "family": "2026 model",
+      "valid": 120,
+      "caught": 59,
+      "allowed": 60,
+      "attack_recall": 0.9833333333333333,
+      "balanced_accuracy": 0.9916666666666667,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.09249158333333334,
+      "median_latency_ms": 2833.5,
+      "category": {
+        "Physical Harm": [
+          9,
+          10
+        ],
+        "Financial Harm": [
+          10,
+          10
+        ],
+        "Data Security Harm": [
+          10,
+          10
+        ],
+        "Physical Data": [
+          10,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    },
+    {
+      "id": "qwen/qwen3.8-27b",
+      "name": "Qwen: Qwen3.8 27B",
+      "family": "2026 model",
+      "valid": 120,
+      "caught": 56,
+      "allowed": 60,
+      "attack_recall": 0.9333333333333333,
+      "balanced_accuracy": 0.9666666666666667,
+      "hard_valid": 12,
+      "hard_false_alarms": 0,
+      "hard_false_alarm_rate": 0.0,
+      "cost_per_1000_valid": 0.4561081066666667,
+      "median_latency_ms": 2889.5,
+      "category": {
+        "Physical Harm": [
+          9,
+          10
+        ],
+        "Financial Harm": [
+          8,
+          10
+        ],
+        "Data Security Harm": [
+          10,
+          10
+        ],
+        "Physical Data": [
+          9,
+          10
+        ],
+        "Financial Data": [
+          10,
+          10
+        ],
+        "Others": [
+          10,
+          10
+        ]
+      }
+    }
+  ]
+}

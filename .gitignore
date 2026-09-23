@@ -1,0 +1,6 @@
+.env
+/*.json
+!package.json
+.runs/
+.playwright-cli/
+node_modules/
