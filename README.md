@@ -1,12 +1,9 @@
 <div align="center">
 
 <a href="https://ddy314.github.io/c4/">
-  <img src="assets/brand/c4-logo.png" alt="C4 — four crossings, one continuous trace" width="132" height="132" />
+  <img src="assets/brand/c4-banner.png" alt="C4 — Control every crossing. Evidence-aware agent control." width="100%" />
 </a>
 
-# C4
-
-### Control every crossing.
 
 **An evidence-aware control plane for coding agents.**<br />
 Trace the evidence. Review the action. Keep useful work moving.
