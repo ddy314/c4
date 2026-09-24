@@ -5,3 +5,6 @@
 .runs/
 .playwright-cli/
 node_modules/
+apps/web/dist/
+apps/web/src/generated/
+output/playwright/

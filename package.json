@@ -3,7 +3,12 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
+  "workspaces": ["apps/web"],
   "scripts": {
+    "web:dev": "npm run dev --workspace=@c4/web --",
+    "web:build": "npm run build --workspace=@c4/web",
+    "web:preview": "npm run preview --workspace=@c4/web --",
+    "web:test": "npm run test --workspace=@c4/web",
     "integrations:build": "node scripts/build-integrations.mjs",
     "smoke:live": "node scripts/smoke-live.mjs",
     "test": "node --test test/*.test.mjs",
