@@ -2,7 +2,7 @@ import { JevClient } from './jev.mjs';
 import { record, readVerifiedTrace, TRACE_FILE, fingerprint } from './audit.mjs';
 import { inspectToolCall, inspectToolResult } from './safety.mjs';
 import { activePolicy, decidePolicy, policyHash } from './policy.mjs';
-import { classifyFlowCall, evaluateFlow, flowPolicyHash } from './flow.mjs';
+import { classifyFlowCall, evaluateFlow, flowPolicyHash, literalEvidenceHashes, hasAgentDirective } from './flow.mjs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -95,8 +95,10 @@ export function createGuard({ host, client, audit = record, sessionId, stateRoot
       if (!text) return { action: 'allow', reason: 'No text to screen' };
       try {
         const decision = await inspectToolResult(canonicalToolName(tool), [{ type: 'text', text }], getClient(), { signal });
+        const untrustedOutput = decision.action === 'allow' && (decision.probabilities?.injection ?? 0) >= 0.35
+          && hasAgentDirective(text);
         const flow = { protectedRead: input ? classifyFlowCall(canonicalToolName(tool), input).protectedRead : false,
-          untrustedOutput: decision.action === 'allow' && (decision.probabilities?.injection ?? 0) >= 0.35 };
+          untrustedOutput, literalHashes: untrustedOutput ? literalEvidenceHashes(text) : [] };
         const decisionRef = await append({ host, boundary: 'tool_result', tool: String(tool), outcome: decision.action,
           observation: decision.observation, policyId: decision.policyId, policyHash: decision.policyHash,
           inputHash: decision.inputHash, probabilities: decision.probabilities, jev: decision.usage, latencyMs: decision.latencyMs,

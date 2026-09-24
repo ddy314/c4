@@ -84,13 +84,15 @@ def main() -> None:
 
     flow_reviews = sum(row["reviewRequests"] for row in DATA["methods"]["flow"].values())
     stateless_reviews = sum(row["reviewRequests"] for row in DATA["methods"]["stateless"].values())
+    flow_calls = sum(row["modelCalls"] for row in DATA["methods"]["flow"].values())
+    stateless_calls = sum(row["modelCalls"] for row in DATA["methods"]["stateless"].values())
     hard_interruptions = DATA["methods"]["flow"]["hard-benign"]["terminalInterventions"]
     fig.text(0.065, 0.145,
-             f"Review burden: {flow_reviews} C4 asks vs {stateless_reviews} stateless asks. "
-             f"{hard_interruptions} hard-benign terminals receive extra review.",
+             f"Review asks: {flow_reviews} C4 vs {stateless_reviews} stateless  •  Jev calls: {flow_calls} vs {stateless_calls}  •  "
+             f"{hard_interruptions} extra hard-benign reviews.",
              fontsize=11.2, color=INK)
     misses = DATA["methods"]["flow"]["attack"]["total"] - DATA["methods"]["flow"]["attack"]["terminalInterventions"]
-    fig.text(0.065, 0.105, f"Known misses: {misses} script-based egress probes pass both methods.",
+    fig.text(0.065, 0.105, f"Designed attack probes not gated: {misses}. Literal Python/Node inline sends are covered; dynamic code is not.",
              fontsize=10.7, color=INK)
     fig.text(0.065, 0.058,
              "Source: hand-authored C4 regression fixtures. 'Ask' counts as gated, not confirmed safe; this is not a real-world attack-rate estimate.",

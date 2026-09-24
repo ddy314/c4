@@ -25,9 +25,9 @@
     "flow": {
       "attack": {
         "total": 18,
-        "terminalInterventions": 16,
+        "terminalInterventions": 18,
         "reviewRequests": 16,
-        "modelCalls": 11
+        "modelCalls": 9
       },
       "benign": {
         "total": 12,
@@ -327,10 +327,10 @@
         "modelCalls": 1
       },
       "flow": {
-        "terminal": "allow",
+        "terminal": "block",
         "reviews": 0,
-        "modelCalls": 1,
-        "ruleId": null
+        "modelCalls": 0,
+        "ruleId": "direct-protected-egress"
       }
     },
     {
@@ -344,10 +344,10 @@
         "modelCalls": 1
       },
       "flow": {
-        "terminal": "allow",
+        "terminal": "block",
         "reviews": 0,
-        "modelCalls": 1,
-        "ruleId": null
+        "modelCalls": 0,
+        "ruleId": "direct-protected-egress"
       }
     },
     {
