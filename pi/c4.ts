@@ -1,8 +1,9 @@
 import { JevClient } from '../src/jev.mjs';
-import { record } from '../src/audit.mjs';
+import { record, fingerprint } from '../src/audit.mjs';
 import { selectMemory, textOf } from '../src/memory.mjs';
 import { inspectInput } from '../src/safety.mjs';
 import { createGuard, QUARANTINE } from '../src/guard.mjs';
+import { mayProjectResult, projectSafeFacts } from '../src/projection.mjs';
 
 const mode = process.env.C4_MODE ?? 'all';
 const memoryEnabled = mode === 'all' || mode === 'compaction';
@@ -103,10 +104,20 @@ export default function c4(pi: any) {
     pi.on('tool_result', async (event: any, ctx: any) => {
       if (!['read', 'bash', 'grep', 'find', 'ls'].includes(event.toolName)) return;
       const decision = await guard!.toolResult(event.toolName, event.content, { signal: ctx.signal, input: event.input });
-      if (decision.action === 'block') {
+      if (decision.action === 'block' || decision.action === 'ask') {
+        if (process.env.C4_RESULT_PROJECTION !== 'off' && mayProjectResult(event.toolName, event.input, decision)) {
+          try {
+            const projected = projectSafeFacts(event.content);
+            if (projected) {
+              await record({ boundary: 'result_projection', mode, outcome: 'projected', sourceDecisionRef: decision.decisionRef,
+                factCount: projected.facts.length, projectionHash: fingerprint(projected.content) },
+              { directory: guard!.auditDirectory });
+              return { content: [{ type: 'text', text: projected.content }] };
+            }
+          } catch { /* Projection must fail closed to quarantine. */ }
+        }
         return { content: [{ type: 'text', text: QUARANTINE }] };
       }
-      if (decision.action === 'ask') return { content: [{ type: 'text', text: QUARANTINE }] };
     });
   }
 }
