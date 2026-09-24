@@ -13,4 +13,4 @@ for (const [label, check] of cases) {
   console.log(JSON.stringify({ case: label, action: decision.action, score: decision.score ?? null,
     latencyMs: Math.round(decision.latencyMs ?? 0), costUsd: decision.usage?.costUsd ?? 0 }));
 }
-console.log(`Audit: ${process.env.C4_AUDIT_DIR}/trace-v2.jsonl`);
+console.log(`Audit: ${guard.auditDirectory}/trace-v2.jsonl`);

@@ -82,22 +82,27 @@ var JevClient = class {
 };
 
 // src/audit.mjs
-import { createHash } from "node:crypto";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { appendFile, mkdir, open, readFile, stat, unlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
 function fingerprint(value) {
   return createHash("sha256").update(String(value)).digest("hex").slice(0, 16);
 }
 var TRACE_FILE = "trace-v2.jsonl";
+var LOCK_SUFFIX = ".lock";
+var DEFAULT_LOCK_TIMEOUT_MS = 5e3;
+var DEFAULT_LOCK_RETRY_MS = 20;
+var DEFAULT_LOCK_STALE_MS = 3e4;
 var writeQueue = Promise.resolve();
 function digest(value) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
-async function verifyTrace(path) {
-  const raw = await readFile(path, "utf8");
+function parseTrace(raw) {
   const lines = raw.trim().split("\n").filter(Boolean);
   let previous = null;
-  const seen = /* @__PURE__ */ new Set();
+  const seen = /* @__PURE__ */ new Map();
+  const reviewed = /* @__PURE__ */ new Set();
+  const entries = [];
   for (const [index, line] of lines.entries()) {
     let entry;
     try {
@@ -109,39 +114,171 @@ async function verifyTrace(path) {
     if (body.prevHash !== previous || hash !== digest(body)) {
       return { valid: false, count: index, error: `Hash chain mismatch at line ${index + 1}` };
     }
-    if (body.boundary === "human_review" && (!seen.has(body.decisionRef) || !["approved", "denied"].includes(body.outcome))) {
-      return { valid: false, count: index, error: `Invalid review receipt at line ${index + 1}` };
+    if (body.boundary === "human_review") {
+      const subject = seen.get(body.decisionRef);
+      if (!subject || !["approved", "denied"].includes(body.outcome)) {
+        return { valid: false, count: index, error: `Invalid review receipt at line ${index + 1}` };
+      }
+      if (body.subject === "tool_call") {
+        const boundSchema = subject.sessionKey !== void 0 || body.sessionKey !== void 0;
+        if (boundSchema && (subject.boundary !== "tool_call" || body.tool !== subject.tool || body.inputHash !== subject.inputHash || body.host !== subject.host || body.sessionKey !== subject.sessionKey || body.policyHash !== subject.policyHash || body.flowPolicyHash !== subject.flowPolicyHash || reviewed.has(body.decisionRef) || body.outcome === "approved" && subject.outcome !== "ask")) {
+          return { valid: false, count: index, error: `Unbound tool approval at line ${index + 1}` };
+        }
+        reviewed.add(body.decisionRef);
+      }
     }
-    seen.add(hash);
+    entries.push(entry);
+    seen.set(hash, entry);
     previous = hash;
   }
-  return { valid: true, count: lines.length, head: previous };
+  return { valid: true, count: lines.length, head: previous, entries };
 }
-async function appendRecord(event) {
-  const directory = process.env.C4_AUDIT_DIR ?? join(projectRoot, ".runs");
-  await mkdir(directory, { recursive: true, mode: 448 });
-  const path = join(directory, TRACE_FILE);
-  let previous = null;
+function durationFromEnv(name, fallback, maximum) {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  if (!Number.isSafeInteger(value) || value < 1) return fallback;
+  return Math.min(value, maximum);
+}
+function lockPathFor(tracePath) {
+  return `${tracePath}${LOCK_SUFFIX}`;
+}
+function sleep(milliseconds) {
+  return new Promise((resolve2) => setTimeout(resolve2, milliseconds));
+}
+async function ownerIsAlive(pid) {
   try {
-    const raw = await readFile(path, "utf8");
-    const lines = raw.trim().split("\n").filter(Boolean);
-    if (lines.length) {
-      const checked = await verifyTrace(path);
-      if (!checked.valid) throw new Error(`Refusing to append to invalid audit chain: ${checked.error}`);
-      previous = checked.head;
-    }
+    process.kill(pid, 0);
+    return true;
   } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    if (error?.code === "ESRCH") return false;
+    return true;
   }
-  const body = { at: (/* @__PURE__ */ new Date()).toISOString(), version: 2, prevHash: previous, ...event };
-  const hash = digest(body);
-  await appendFile(path, `${JSON.stringify({ ...body, hash })}
-`, { mode: 384 });
-  return hash;
 }
-function record(event) {
+async function reclaimStaleLock(lockPath) {
+  let lockStat;
+  try {
+    lockStat = await stat(lockPath);
+  } catch (error) {
+    return error?.code === "ENOENT";
+  }
+  const staleAfter = durationFromEnv("C4_AUDIT_LOCK_STALE_MS", DEFAULT_LOCK_STALE_MS, 24 * 60 * 60 * 1e3);
+  if (Date.now() - lockStat.mtimeMs < staleAfter) return false;
+  let owner;
+  try {
+    owner = JSON.parse(await readFile(lockPath, "utf8"));
+  } catch {
+    return false;
+  }
+  const pid = owner?.pid;
+  if (!Number.isSafeInteger(pid) || pid < 1 || await ownerIsAlive(pid)) return false;
+  try {
+    await unlink(lockPath);
+    return true;
+  } catch (error) {
+    return error?.code === "ENOENT";
+  }
+}
+async function acquireLock(tracePath) {
+  const lockPath = lockPathFor(tracePath);
+  const timeout = durationFromEnv("C4_AUDIT_LOCK_TIMEOUT_MS", DEFAULT_LOCK_TIMEOUT_MS, 6e4);
+  const retry = durationFromEnv("C4_AUDIT_LOCK_RETRY_MS", DEFAULT_LOCK_RETRY_MS, 1e3);
+  const deadline = Date.now() + timeout;
+  await mkdir(dirname(tracePath), { recursive: true, mode: 448 });
+  while (true) {
+    let handle;
+    try {
+      handle = await open(lockPath, "wx", 384);
+      const metadata = JSON.stringify({ version: 1, pid: process.pid, token: randomUUID(), acquiredAt: (/* @__PURE__ */ new Date()).toISOString() });
+      await handle.writeFile(metadata, "utf8");
+      await handle.sync();
+      return async () => {
+        let releaseError;
+        try {
+          await handle.close();
+        } catch (error) {
+          releaseError = error;
+        }
+        try {
+          await unlink(lockPath);
+        } catch (error) {
+          if (error?.code !== "ENOENT" && !releaseError) releaseError = error;
+        }
+        if (releaseError) throw releaseError;
+      };
+    } catch (error) {
+      if (handle) {
+        try {
+          await handle.close();
+        } catch {
+        }
+        try {
+          await unlink(lockPath);
+        } catch {
+        }
+      }
+      if (error?.code !== "EEXIST") throw error;
+      if (await reclaimStaleLock(lockPath)) continue;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new Error(`Timed out waiting for audit lock ${lockPath}; refusing to append`);
+      }
+      await sleep(Math.min(retry, remaining));
+    }
+  }
+}
+async function readTrace(path) {
+  const raw = await readFile(path, "utf8");
+  return parseTrace(raw);
+}
+async function readVerifiedTrace(path) {
+  const release = await acquireLock(path);
+  try {
+    let checked;
+    try {
+      checked = await readTrace(path);
+    } catch (error) {
+      if (error?.code === "ENOENT") return [];
+      throw error;
+    }
+    if (!checked.valid) throw new Error(`Invalid audit chain: ${checked.error}`);
+    return checked.entries;
+  } finally {
+    await release();
+  }
+}
+async function appendRecord(event, { directory } = {}) {
+  const targetDirectory = directory ?? process.env.C4_AUDIT_DIR ?? join(projectRoot, ".runs");
+  const directoryPath = String(targetDirectory);
+  const path = join(directoryPath, TRACE_FILE);
+  const release = await acquireLock(path);
+  try {
+    let checked = { valid: true, head: null, entries: [] };
+    try {
+      checked = await readTrace(path);
+      if (!checked.valid) throw new Error(`Refusing to append to invalid audit chain: ${checked.error}`);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    if (event.boundary === "human_review") {
+      const source = checked.entries.find((entry) => entry.hash === event.decisionRef);
+      if (!source) throw new Error("Review decision reference is not in this trace");
+      if (event.subject === "tool_call" && (source.sessionKey !== void 0 || event.sessionKey !== void 0)) {
+        if (source.boundary !== "tool_call" || source.tool !== event.tool || source.inputHash !== event.inputHash || source.host !== event.host || source.sessionKey !== event.sessionKey || source.policyHash !== event.policyHash || source.flowPolicyHash !== event.flowPolicyHash || event.outcome === "approved" && source.outcome !== "ask" || checked.entries.some((entry) => entry.boundary === "human_review" && entry.decisionRef === event.decisionRef)) {
+          throw new Error("Refusing an unbound or duplicate tool review");
+        }
+      }
+    }
+    const body = { at: (/* @__PURE__ */ new Date()).toISOString(), version: 2, prevHash: checked.head, ...event };
+    const hash = digest(body);
+    await appendFile(path, `${JSON.stringify({ ...body, hash })}
+`, { mode: 384 });
+    return hash;
+  } finally {
+    await release();
+  }
+}
+function record(event, options = {}) {
   const operation = writeQueue.catch(() => {
-  }).then(() => appendRecord(event));
+  }).then(() => appendRecord(event, options));
   writeQueue = operation;
   return operation;
 }
@@ -274,6 +411,103 @@ async function inspectToolResult(tool, content, client, { signal } = {}) {
   return { ...routeRisk({ probabilities, boundary: "result" }), observation: { boundary: "tool_result", probabilities }, probabilities, inputHash: fingerprint(text), ...result };
 }
 
+// src/flow.mjs
+import { basename, resolve } from "node:path";
+var FLOW_POLICY = Object.freeze({ id: "flow-v2", lookbackMs: 5 * 6e4 });
+var flowPolicyHash = fingerprint(JSON.stringify(FLOW_POLICY));
+var PUBLIC_SUFFIX = /\.(?:example|sample|template|dist|example\.json)$/i;
+var FILE_WORD = /(?:^|[\s'"=:@])((?:\.{0,2}\/|~\/|\/)?[^\s'"|;&<>]+)(?=$|[\s'"|;&<>])/g;
+function isProtectedPath(value) {
+  if (typeof value !== "string") return false;
+  const name = basename(value.replace(/^["'@]+|["']+$/g, ""));
+  if (!name || PUBLIC_SUFFIX.test(name)) return false;
+  return /^\.env(?:\.|$)/i.test(name) || /^(?:id_rsa|id_ed25519|credentials?(?:[._-]|$)|private[_-]?key(?:[._-]|$)|service[_-]?account(?:[._-]|$))/i.test(name);
+}
+function pathHash(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  return fingerprint(resolve(value.trim().replace(/^["'@]+|["']+$/g, "")));
+}
+function commandPaths(command) {
+  return [...String(command).matchAll(FILE_WORD)].map((match) => match[1]);
+}
+function executes(command, names) {
+  return new RegExp(`(?:^|(?:&&|\\|\\||[;|])\\s*)(?:sudo\\s+)?(?:${names})\\b`, "i").test(command);
+}
+function egressFiles(command) {
+  const files = [];
+  for (const match of String(command).matchAll(/(--data(?:-binary|-raw|-urlencode)?|-d|--form|-F|--upload-file|-T)(?:\s+|=)(?:[\w-]+=)?['"]?(@?[^\s'";|]+)/gi)) {
+    const option = match[1];
+    const value = match[2];
+    if (value.startsWith("@") || /^(?:--upload-file|-T)$/i.test(option)) files.push(value.replace(/^@/, ""));
+  }
+  const transfer = String(command).match(/\b(?:scp|rsync)\s+(?:-[^\s]+\s+)*([^\s]+)\s+[^\s]*@[^\s:]+:/i);
+  if (transfer) files.push(transfer[1]);
+  const gist = String(command).match(/\bgh\s+gist\s+create\s+(?:-[^\s]+\s+)*([^\s]+)/i);
+  if (gist) files.push(gist[1]);
+  const wgetPost = String(command).match(/--post-file(?:=|\s+)['"]?([^\s'";|]+)/i);
+  if (wgetPost) files.push(wgetPost[1]);
+  return files;
+}
+function unwrapShell(command) {
+  const match = String(command).match(/^\s*(?:bash|sh)\s+-c\s+(["'])([\s\S]*)\1\s*$/i);
+  return match ? match[2] : String(command);
+}
+function isOutbound(tool, command) {
+  if (tool !== "bash") return /(?:^|[./:_-])(?:send|upload|publish|post)(?:$|[./:_-])/i.test(tool);
+  return executes(command, "curl") && /(?:--data(?:-binary|-raw|-urlencode)?\b|-d(?:\s|=)|--form\b|-F(?:\s|=)|--upload-file\b|-T(?:\s|=)|-X\s+(?:POST|PUT|PATCH)\b)/i.test(command) || executes(command, "wget") && /--post-(?:data|file)\b/i.test(command) || executes(command, "scp|rsync") && /\s[^\s]*@[^\s:]+:/i.test(command) || executes(command, "git") && /\bgit\s+push\b/i.test(command) || executes(command, "gh") && /\bgh\s+gist\s+create\b/i.test(command);
+}
+function classifyFlowCall(tool, input2) {
+  const command = tool === "bash" ? unwrapShell(input2?.command ?? input2?.cmd ?? "") : "";
+  const target = String(input2?.path ?? input2?.file_path ?? input2?.filePath ?? "");
+  const words = tool === "bash" ? commandPaths(command) : [];
+  const shellRead = tool === "bash" && executes(command, "cat|head|tail|sed|grep|base64|openssl|tar|cp");
+  const protectedRead = tool === "read" && isProtectedPath(target) || shellRead && words.some(isProtectedPath);
+  const outbound = isOutbound(tool, command);
+  const outboundFiles = outbound ? tool === "bash" ? egressFiles(command) : [target].filter(Boolean) : [];
+  const commandSubstitution = outbound && [...command.matchAll(/\$\(\s*(?:cat|head|tail|sed)\s+([^\s)]+)[^)]*\)/gi)].some((match) => isProtectedPath(match[1]));
+  const directProtectedEgress = outbound && (outboundFiles.some(isProtectedPath) || commandSubstitution);
+  const artifactHashes = outboundFiles.map(pathHash).filter(Boolean);
+  const stagedPath = tool === "bash" && executes(command, "base64|openssl|tar|cp") ? command.match(/(?:>\s*|\b(?:cp|mv)\s+[^\s]+\s+)([^\s|;&]+)/)?.[1] : null;
+  return {
+    protectedRead,
+    outbound,
+    directProtectedEgress,
+    artifactHashes,
+    stagedArtifactHash: stagedPath ? pathHash(stagedPath) : null
+  };
+}
+function isEffective(entry, reviews) {
+  if (entry.outcome === "allow") return true;
+  if (entry.boundary === "tool_result" && entry.outcome !== "block") return true;
+  return entry.outcome === "ask" && reviews.has(entry.hash);
+}
+function evaluateFlow(current, entries, now = Date.now()) {
+  if (current.directProtectedEgress) {
+    return { action: "block", ruleId: "direct-protected-egress", reason: "Direct upload of a credential-like file", parentDecisionRefs: [] };
+  }
+  if (current.protectedRead && !current.outbound) {
+    return { action: "ask", ruleId: "protected-read", reason: "Reading a credential-like file requires confirmation", parentDecisionRefs: [] };
+  }
+  if (!current.outbound) return null;
+  const recent = entries.filter((entry) => {
+    const at = Date.parse(entry.at ?? "");
+    return Number.isFinite(at) && now - at >= 0 && now - at <= FLOW_POLICY.lookbackMs;
+  });
+  const reviews = new Set(recent.filter((entry) => entry.boundary === "human_review" && entry.outcome === "approved").map((entry) => entry.decisionRef));
+  const exposures = recent.filter((entry) => entry.flow?.protectedRead && (isEffective(entry, reviews) || entry.outcome === "ask" && ["claude", "deepseek-harness"].includes(entry.host)));
+  const staged = recent.filter((entry) => entry.flow?.protectedRead && entry.flow?.stagedArtifactHash && isEffective(entry, reviews) && current.artifactHashes.includes(entry.flow.stagedArtifactHash));
+  const injections = recent.filter((entry) => entry.boundary === "tool_result" && entry.flow?.untrustedOutput);
+  const source = staged.at(-1) ?? exposures.at(-1) ?? injections.at(-1);
+  if (!source) return null;
+  const ruleId = staged.length ? "staged-artifact-egress" : exposures.length ? "protected-read-to-egress" : "untrusted-output-to-egress";
+  return {
+    action: "ask",
+    ruleId,
+    reason: staged.length ? "A locally staged artifact follows a protected read and is about to leave the agent" : exposures.length ? "A recent credential-like read is followed by an outbound action" : "An untrusted tool result is followed by an outbound action",
+    parentDecisionRefs: [source.hash].filter(Boolean)
+  };
+}
+
 // src/guard.mjs
 import { homedir } from "node:os";
 import { join as join2 } from "node:path";
@@ -310,21 +544,55 @@ function textBlocks(value, limit = 12e3) {
   visit(value);
   return chunks2.filter(Boolean).join("\n").slice(0, limit);
 }
-function createGuard({ host, client, audit = record } = {}) {
+function createGuard({ host, client, audit = record, sessionId, stateRoot } = {}) {
   if (!host) throw new Error("C4 guard requires a host name");
-  if (!process.env.C4_AUDIT_DIR) {
-    const hostDirectory = host.replace(/[^a-z0-9_-]/gi, "-");
-    process.env.C4_AUDIT_DIR = join2(homedir(), ".local", "state", "c4", fingerprint(process.cwd()), hostDirectory, String(process.pid));
-  }
+  const hostDirectory = host.replace(/[^a-z0-9_-]/gi, "-");
+  const session = sessionId ?? process.env.C4_SESSION_ID;
+  const sessionKey = session ? `session-${fingerprint(session)}` : String(process.pid);
+  const auditDirectory = process.env.C4_AUDIT_DIR ?? join2(stateRoot ?? join2(homedir(), ".local", "state", "c4"), fingerprint(process.cwd()), hostDirectory, sessionKey);
+  const tracePath = join2(auditDirectory, TRACE_FILE);
+  const localEntries = [];
   let activeClient = client;
   const getClient = () => activeClient ??= new JevClient();
+  async function append(event) {
+    const at = (/* @__PURE__ */ new Date()).toISOString();
+    const hash = await audit({ ...event, sessionKey }, { directory: auditDirectory });
+    if (audit !== record) localEntries.push({ ...event, sessionKey, at, hash });
+    return hash;
+  }
+  async function history() {
+    if (audit !== record) return localEntries;
+    try {
+      return (await readVerifiedTrace(tracePath)).filter((entry) => entry.host === host && entry.sessionKey === sessionKey);
+    } catch (error) {
+      if (error?.code === "ENOENT") return [];
+      throw error;
+    }
+  }
   return {
+    auditDirectory,
     async toolCall(tool, input2, { goal = "", signal } = {}) {
       const normalized = canonicalToolName(tool);
       let decision;
       try {
-        decision = await inspectToolCall(normalized, input2, getClient(), { goal, signal });
-        const decisionRef = await audit({
+        const flow = classifyFlowCall(normalized, input2);
+        const flowRule = flow.outbound || flow.protectedRead ? evaluateFlow(flow, flow.outbound ? await history() : []) : null;
+        if (flowRule) {
+          const hard = { action: flowRule.action, reason: flowRule.reason };
+          decision = {
+            ...decidePolicy({ boundary: "tool_call", probabilities: {}, hard }, activePolicy()),
+            observation: { boundary: "tool_call", probabilities: {}, hard },
+            probabilities: {},
+            inputHash: fingerprint(JSON.stringify({ tool: normalized, input: input2 })),
+            usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+            latencyMs: 0,
+            ruleId: flowRule.ruleId,
+            parentDecisionRefs: flowRule.parentDecisionRefs
+          };
+        } else {
+          decision = await inspectToolCall(normalized, input2, getClient(), { goal, signal });
+        }
+        const decisionRef = await append({
           host,
           boundary: "tool_call",
           tool: String(tool),
@@ -335,19 +603,27 @@ function createGuard({ host, client, audit = record } = {}) {
           inputHash: decision.inputHash,
           probabilities: decision.probabilities,
           jev: decision.usage,
-          latencyMs: decision.latencyMs
+          latencyMs: decision.latencyMs,
+          flow,
+          flowPolicyHash,
+          ruleId: decision.ruleId,
+          parentDecisionRefs: decision.parentDecisionRefs
         });
         return { ...decision, decisionRef };
       } catch {
         return { action: "block", reason: "C4 tool-call screening or audit unavailable" };
       }
     },
-    async toolResult(tool, output, { signal } = {}) {
+    async toolResult(tool, output, { signal, input: input2 } = {}) {
       const text = textBlocks(output);
       if (!text) return { action: "allow", reason: "No text to screen" };
       try {
         const decision = await inspectToolResult(canonicalToolName(tool), [{ type: "text", text }], getClient(), { signal });
-        await audit({
+        const flow = {
+          protectedRead: input2 ? classifyFlowCall(canonicalToolName(tool), input2).protectedRead : false,
+          untrustedOutput: decision.action === "allow" && (decision.probabilities?.injection ?? 0) >= 0.35
+        };
+        const decisionRef = await append({
           host,
           boundary: "tool_result",
           tool: String(tool),
@@ -358,21 +634,36 @@ function createGuard({ host, client, audit = record } = {}) {
           inputHash: decision.inputHash,
           probabilities: decision.probabilities,
           jev: decision.usage,
-          latencyMs: decision.latencyMs
+          latencyMs: decision.latencyMs,
+          flow,
+          flowPolicyHash
         });
-        return decision;
+        return { ...decision, decisionRef };
       } catch {
         return { action: "block", reason: "C4 result screening or audit unavailable" };
       }
     },
-    async review(decisionRef, tool, approved, reviewer = "interactive_user") {
+    async review(decisionRef, tool, approved, reviewer = "interactive_user", input2) {
       try {
-        await audit({
+        const entries = await history();
+        const source = entries.find((entry) => entry.hash === decisionRef && entry.boundary === "tool_call");
+        if (!source || source.tool !== String(tool)) return false;
+        if (approved) {
+          if (source.outcome !== "ask" || input2 === void 0) return false;
+          if (source.inputHash !== fingerprint(JSON.stringify({ tool: canonicalToolName(tool), input: input2 }))) return false;
+          if (source.policyHash !== policyHash(activePolicy()) || source.flowPolicyHash !== flowPolicyHash) return false;
+          if (entries.some((entry) => entry.boundary === "human_review" && entry.decisionRef === decisionRef)) return false;
+          if (Date.now() - Date.parse(source.at) > 5 * 6e4) return false;
+        }
+        await append({
           host,
           boundary: "human_review",
           decisionRef,
           subject: "tool_call",
           tool: String(tool),
+          inputHash: source.inputHash,
+          policyHash: source.policyHash,
+          flowPolicyHash: source.flowPolicyHash,
           outcome: approved ? "approved" : "denied",
           reviewer
         });
@@ -403,7 +694,7 @@ function redactResult(value) {
   }
   return value;
 }
-async function handleHook(host, input2, guard = createGuard({ host })) {
+async function handleHook(host, input2, guard = createGuard({ host, sessionId: input2?.session_id ?? input2?.sessionId })) {
   const event = input2?.hook_event_name;
   const tool = input2?.tool_name ?? "";
   if (!["PreToolUse", "PostToolUse"].includes(event)) return {};
@@ -416,7 +707,7 @@ async function handleHook(host, input2, guard = createGuard({ host })) {
     }
     return { hookSpecificOutput: { hookEventName: event, permissionDecision: "deny", permissionDecisionReason: decision2.reason } };
   }
-  const decision = await guard.toolResult(tool, input2.tool_response ?? input2.tool_output ?? {});
+  const decision = await guard.toolResult(tool, input2.tool_response ?? input2.tool_output ?? {}, { input: input2.tool_input });
   if (decision.action === "allow") return {};
   if (host === "codex") return { decision: "block", reason: `${QUARANTINE} ${decision.reason}` };
   return { hookSpecificOutput: {

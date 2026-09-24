@@ -144,8 +144,8 @@ test('default audit directory separates concurrent host processes', () => {
   const previous = process.env.C4_AUDIT_DIR;
   delete process.env.C4_AUDIT_DIR;
   try {
-    createGuard({ host: 'codex', client: fakeClient(), audit: async () => 'hash' });
-    assert.match(process.env.C4_AUDIT_DIR, new RegExp(`/codex/${process.pid}$`));
+    const guard = createGuard({ host: 'codex', client: fakeClient(), audit: async () => 'hash' });
+    assert.match(guard.auditDirectory, new RegExp(`/codex/${process.pid}$`));
   } finally {
     if (previous === undefined) delete process.env.C4_AUDIT_DIR;
     else process.env.C4_AUDIT_DIR = previous;

@@ -10,7 +10,7 @@ export default {
     });
     await ctx.tool.hook('execute.after', async (event) => {
       if (event.status !== 'completed' || !textBlocks(event.result?.content)) return;
-      const decision = await guard.toolResult(event.tool, event.result.content);
+      const decision = await guard.toolResult(event.tool, event.result.content, { input: event.input });
       if (decision.action !== 'allow') event.result = { ...event.result, content: QUARANTINE };
     });
   },

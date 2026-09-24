@@ -13,7 +13,7 @@ export function apply(ctx) {
   });
   ctx.on('tools/post-execute', async (exec, result, next) => {
     if (result.isError || !textBlocks(result.content)) return next();
-    const decision = await guard.toolResult(exec.name, result.content, { signal: exec.signal });
+    const decision = await guard.toolResult(exec.name, result.content, { signal: exec.signal, input: exec.arguments });
     if (decision.action === 'allow') return next();
     // A content-only replacement leaves the structured value available to nested callers.
     return { kind: 'block', feedback: [{ type: 'text', text: QUARANTINE }] };

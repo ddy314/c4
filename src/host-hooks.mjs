@@ -20,7 +20,7 @@ function redactResult(value) {
   return value;
 }
 
-export async function handleHook(host, input, guard = createGuard({ host })) {
+export async function handleHook(host, input, guard = createGuard({ host, sessionId: input?.session_id ?? input?.sessionId })) {
   const event = input?.hook_event_name;
   const tool = input?.tool_name ?? '';
   if (!['PreToolUse', 'PostToolUse'].includes(event)) return {};
@@ -34,7 +34,7 @@ export async function handleHook(host, input, guard = createGuard({ host })) {
     // Codex currently does not support the ask decision in PreToolUse; deny rather than silently allow.
     return { hookSpecificOutput: { hookEventName: event, permissionDecision: 'deny', permissionDecisionReason: decision.reason } };
   }
-  const decision = await guard.toolResult(tool, input.tool_response ?? input.tool_output ?? {});
+  const decision = await guard.toolResult(tool, input.tool_response ?? input.tool_output ?? {}, { input: input.tool_input });
   if (decision.action === 'allow') return {};
   if (host === 'codex') return { decision: 'block', reason: `${QUARANTINE} ${decision.reason}` };
   return { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: redactResult(input.tool_response ?? {}),
